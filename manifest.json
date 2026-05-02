@@ -1,7 +1,7 @@
 {
   "name": "積木消消樂",
   "short_name": "消消樂",
-  "description": "長輩友善的無廣告積木遊戲",
+  "description": "積木遊戲",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#0b0f19",
