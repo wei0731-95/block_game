@@ -1,0 +1,141 @@
+body {
+    margin: 0;
+    padding: 0;
+    background-color: #0b0f19; /* 深色背景 */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    overflow: hidden;
+    font-family: "Arial Rounded MT Bold", "Microsoft JhengHei", sans-serif;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+}
+
+#gameContainer {
+    background-color: #151b29; /* 遊戲區背景 */
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    border-radius: 20px;
+    padding: 20px 15px;
+    text-align: center;
+    position: relative; /* 讓內部的絕對定位元素以這裡為基準 */
+}
+
+/* 音樂按鈕樣式 */
+#muteBtn {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    background-color: #2a3548;
+    color: #ffffff;
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    z-index: 10;
+    transition: transform 0.1s, background-color 0.2s;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#muteBtn:active {
+    transform: scale(0.9);
+}
+
+#scoreBoard {
+    font-size: 32px;
+    font-weight: 900;
+    color: #ffffff;
+    margin-bottom: 15px;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
+
+#comboMessage {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 40px;
+    font-weight: bold;
+    color: #ffdd59;
+    text-shadow: 0 4px 10px rgba(0,0,0,0.8);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+    z-index: 10;
+}
+
+canvas {
+    background-color: #1e2738;
+    cursor: pointer;
+    border-radius: 12px;
+    max-width: 100%;
+    height: auto;
+    box-shadow: inset 0 0 10px rgba(0,0,0,0.3);
+}
+
+/* === 彈窗樣式 === */
+.modal {
+    display: none; /* 預設隱藏 */
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(11, 15, 25, 0.85); /* 半透明深色遮罩 */
+    z-index: 100;
+    justify-content: center;
+    align-items: center;
+    border-radius: 20px; /* 貼齊外框的圓角 */
+    animation: fadeIn 0.3s ease-out;
+}
+
+.modal-content {
+    background-color: #1e2738;
+    padding: 35px 40px;
+    border-radius: 20px;
+    text-align: center;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+    border: 3px solid #2a3548;
+}
+
+.modal-content h2 {
+    color: #ffffff;
+    margin-top: 0;
+    font-size: 32px;
+    letter-spacing: 2px;
+}
+
+.modal-content p {
+    color: #ffdd59; /* 金黃色高光分數 */
+    font-size: 28px;
+    font-weight: bold;
+    margin: 20px 0 30px 0;
+}
+
+#restartBtn {
+    background-color: #32ff7e; /* 螢光綠，極高對比 */
+    color: #0b0f19;
+    border: none;
+    padding: 16px 40px;
+    font-size: 24px;
+    font-weight: 900;
+    border-radius: 40px;
+    cursor: pointer;
+    box-shadow: 0 6px 15px rgba(50, 255, 126, 0.3);
+    transition: transform 0.1s;
+}
+
+#restartBtn:active {
+    transform: scale(0.95); /* 點擊時微縮的物理手感 */
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: scale(0.9); }
+    to { opacity: 1; transform: scale(1); }
+}

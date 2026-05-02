@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>長輩友善積木消消樂</title>
+    <link rel="stylesheet" href="style.css">
+
+    <!-- 讓網頁可以安裝到手機主畫面 (PWA) -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1e2738">
+    <!-- 如果你有準備 icon.png 可以取消註解下一行 -->
+     <link rel="apple-touch-icon" href="icon.jpg">
+</head>
+<body>
+
+<div id="gameContainer">
+    <!-- 音樂控制按鈕 -->
+    <button id="muteBtn">🔊</button>
+
+    <!-- 隱藏的背景音樂播放器 (無限循環) -->
+    <audio id="bgMusic" src="bgm.mp3" loop preload="auto"></audio>
+
+    <div id="scoreBoard">分數: <span id="score">0</span></div>
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- Combo 提示文字 -->
+    <div id="comboMessage"></div>
+
+    <!-- 遊戲結束自訂彈窗 -->
+    <div id="gameOverModal" class="modal">
+        <div class="modal-content">
+            <h2>遊戲結束！</h2>
+            <p>你的分數: <span id="finalScore">0</span></p>
+            <button id="restartBtn">重新開始</button>
+        </div>
+    </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
