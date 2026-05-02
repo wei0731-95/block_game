@@ -7,13 +7,14 @@ const gameOverModal = document.getElementById('gameOverModal');
 const finalScoreElement = document.getElementById('finalScore');
 const restartBtn = document.getElementById('restartBtn');
 
-// 音樂與音效控制
+// === 音樂與音效控制 ===
 const bgMusic = document.getElementById('bgMusic');
 const muteBtn = document.getElementById('muteBtn');
 let isMuted = false;
-bgMusic.volume = 0.4; // 背景音樂稍微小聲一點
+let audioUnlocked = false; // 新增：用來追蹤是否已經成功解鎖音訊
 
-// 綁定靜音按鈕
+bgMusic.volume = 0.3; // BGM 音量調低一點，避免蓋過音效
+
 muteBtn.addEventListener('pointerdown', (e) => {
     e.stopPropagation();
     isMuted = !isMuted;
@@ -21,17 +22,48 @@ muteBtn.addEventListener('pointerdown', (e) => {
         bgMusic.pause();
         muteBtn.innerText = '🔇';
     } else {
-        bgMusic.play().catch(() => {});
+        if (audioUnlocked) bgMusic.play().catch(() => {});
         muteBtn.innerText = '🔊';
     }
 });
 
-// === 音效引擎 (Web Audio API) ===
+// 音效引擎
 const AudioContext = window.AudioContext || window.webkitAudioContext;
 let audioCtx = new AudioContext();
 
+// === 優化：獨立的音訊解鎖函數 ===
+function unlockAudio() {
+    if (audioUnlocked) return;
+
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
+
+    // 播放一個無聲的音訊來徹底喚醒 iOS 的 AudioSession
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    gain.gain.value = 0;
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(0);
+    osc.stop(0.01);
+
+    if (!isMuted && bgMusic.paused) {
+        bgMusic.play().catch(() => {});
+    }
+
+    audioUnlocked = true;
+
+    // 解鎖成功後，移除這個全域監聽器，避免浪費資源
+    document.removeEventListener('pointerdown', unlockAudio);
+}
+
+// 綁定到整個 document，只要長輩點擊畫面任何地方就能解鎖
+document.addEventListener('pointerdown', unlockAudio);
+
+
 function playSound(type, combo = 1) {
-    if (isMuted) return; // 如果靜音了就不要播特效音
+    if (isMuted || !audioUnlocked) return;
     if (audioCtx.state === 'suspended') audioCtx.resume();
 
     const osc = audioCtx.createOscillator();
@@ -43,34 +75,39 @@ function playSound(type, combo = 1) {
     const now = audioCtx.currentTime;
 
     if (type === 'place') {
-        // 低沉短促的「啵」聲
         osc.type = 'sine';
-        osc.frequency.setValueAtTime(150, now);
-        osc.frequency.exponentialRampToValueAtTime(40, now + 0.1);
-        gainNode.gain.setValueAtTime(0.5, now);
+        osc.frequency.setValueAtTime(120, now);
+        osc.frequency.exponentialRampToValueAtTime(30, now + 0.1);
+
+        // 優化：消除爆音，讓音量平滑上升再下降
+        gainNode.gain.setValueAtTime(0, now);
+        gainNode.gain.linearRampToValueAtTime(0.5, now + 0.02);
         gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+
         osc.start(now);
         osc.stop(now + 0.1);
     } else if (type === 'clear') {
-        // 清脆的消除聲。Combo 越高，基礎頻率越高
         osc.type = 'triangle';
         const baseFreq = 440 * Math.pow(1.15, combo - 1);
 
         osc.frequency.setValueAtTime(baseFreq, now);
-        osc.frequency.exponentialRampToValueAtTime(baseFreq * 2, now + 0.3);
+        osc.frequency.exponentialRampToValueAtTime(baseFreq * 1.5, now + 0.3);
 
-        gainNode.gain.setValueAtTime(0.4, now);
+        gainNode.gain.setValueAtTime(0, now);
+        gainNode.gain.linearRampToValueAtTime(0.4, now + 0.05);
         gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
 
         osc.start(now);
         osc.stop(now + 0.3);
     } else if (type === 'over') {
-        // 遊戲結束音效
         osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(300, now);
-        osc.frequency.exponentialRampToValueAtTime(50, now + 0.8);
-        gainNode.gain.setValueAtTime(0.5, now);
+        osc.frequency.setValueAtTime(250, now);
+        osc.frequency.exponentialRampToValueAtTime(40, now + 0.8);
+
+        gainNode.gain.setValueAtTime(0, now);
+        gainNode.gain.linearRampToValueAtTime(0.5, now + 0.1);
         gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.8);
+
         osc.start(now);
         osc.stop(now + 0.8);
     }
@@ -92,7 +129,6 @@ const BOARD_COLOR_BG = '#1e2738';
 const CELL_COLOR_EMPTY = '#2a3548';
 const BLOCK_COLORS = ['#ff3838', '#32ff7e', '#18dcff', '#ffb8b8', '#c56cf0', '#ffb142', '#fff200'];
 
-// === 資料結構 (25 種形狀) ===
 let board = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
 const SHAPES = [
     [[0,0]],
@@ -117,7 +153,6 @@ let dragOffsetY = 0;
 let isAnimatingClear = false;
 let clearingBlocks = [];
 
-// === 初始化 ===
 function init() {
     isGameOver = false;
     isAnimatingClear = false;
@@ -194,6 +229,7 @@ function generateHandBlocks() {
             isUsed: false
         });
     }
+    // 優化：每次生成新積木，確保檢查是否真的能玩
     checkGameOver();
 }
 
@@ -393,7 +429,6 @@ function checkAndClearLines() {
         score += (totalLinesCleared * totalLinesCleared) * 10;
         scoreElement.innerText = score;
 
-        // 【播放消除音效，Combo 越高音調越高】
         playSound('clear', totalLinesCleared);
 
         rowsToClear.forEach(r => {
@@ -413,7 +448,6 @@ function checkAndClearLines() {
             }
         });
     } else {
-        // 【如果沒有消除，單純播放放置音效】
         playSound('place');
     }
 }
@@ -426,17 +460,8 @@ function getPos(e) {
 }
 
 canvas.addEventListener('pointerdown', (e) => {
+    // 優化：直接阻斷任何在遊戲結束或動畫播放時的觸控，防止奇怪的邊界錯誤
     if (isGameOver || isAnimatingClear) return;
-
-    // 【確保在第一次互動時解鎖音效引擎】
-    if (audioCtx.state === 'suspended') {
-        audioCtx.resume();
-    }
-
-    // 【確保在第一次互動時播放背景音樂】
-    if (bgMusic.paused && !isMuted) {
-        bgMusic.play().catch(() => console.log("等待使用者互動以播放音樂"));
-    }
 
     const pos = getPos(e);
 
@@ -461,6 +486,7 @@ canvas.addEventListener('pointerdown', (e) => {
 
 canvas.addEventListener('pointermove', (e) => {
     if (!draggingBlock) return;
+    // 只有在真的有抓取積木時，才阻止預設行為 (避免干擾頁面其他操作)
     e.preventDefault();
     const pos = getPos(e);
     draggingBlock.currentX = pos.x - dragOffsetX;
@@ -520,7 +546,6 @@ function checkGameOver() {
     if (!canAnyBlockFit && !isGameOver) {
         isGameOver = true;
 
-        // 播放遊戲結束音效
         playSound('over');
 
         setTimeout(() => {
@@ -536,4 +561,5 @@ restartBtn.addEventListener('pointerdown', (e) => {
     init();
 });
 
+// 啟動遊戲
 init();

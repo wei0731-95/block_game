@@ -1,25 +1,32 @@
 body {
     margin: 0;
     padding: 0;
-    background-color: #0b0f19; /* 深色背景 */
+    background-color: #0b0f19;
     display: flex;
     justify-content: center;
     align-items: center;
     height: 100vh;
     overflow: hidden;
     font-family: "Arial Rounded MT Bold", "Microsoft JhengHei", sans-serif;
+
+    /* === 優化：徹底禁用所有手機瀏覽器的預設長按行為 === */
     user-select: none;
     -webkit-user-select: none;
-    touch-action: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    touch-action: none; /* 防止畫面跟著手指滑動 */
+    -webkit-touch-callout: none; /* 禁用長按選單 (iOS) */
+    -webkit-tap-highlight-color: transparent; /* 移除點擊時的藍色半透明方塊 */
 }
 
+/* ...其餘 CSS 保持不變... */
 #gameContainer {
-    background-color: #151b29; /* 遊戲區背景 */
+    background-color: #151b29;
     box-shadow: 0 10px 30px rgba(0,0,0,0.5);
     border-radius: 20px;
     padding: 20px 15px;
     text-align: center;
-    position: relative; /* 讓內部的絕對定位元素以這裡為基準 */
+    position: relative;
 }
 
 /* 音樂按鈕樣式 */
@@ -81,17 +88,17 @@ canvas {
 
 /* === 彈窗樣式 === */
 .modal {
-    display: none; /* 預設隱藏 */
+    display: none;
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(11, 15, 25, 0.85); /* 半透明深色遮罩 */
+    background-color: rgba(11, 15, 25, 0.85);
     z-index: 100;
     justify-content: center;
     align-items: center;
-    border-radius: 20px; /* 貼齊外框的圓角 */
+    border-radius: 20px;
     animation: fadeIn 0.3s ease-out;
 }
 
@@ -112,14 +119,14 @@ canvas {
 }
 
 .modal-content p {
-    color: #ffdd59; /* 金黃色高光分數 */
+    color: #ffdd59;
     font-size: 28px;
     font-weight: bold;
     margin: 20px 0 30px 0;
 }
 
 #restartBtn {
-    background-color: #32ff7e; /* 螢光綠，極高對比 */
+    background-color: #32ff7e;
     color: #0b0f19;
     border: none;
     padding: 16px 40px;
@@ -132,7 +139,7 @@ canvas {
 }
 
 #restartBtn:active {
-    transform: scale(0.95); /* 點擊時微縮的物理手感 */
+    transform: scale(0.95);
 }
 
 @keyframes fadeIn {
