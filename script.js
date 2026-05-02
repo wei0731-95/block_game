@@ -11,9 +11,9 @@ const restartBtn = document.getElementById('restartBtn');
 const bgMusic = document.getElementById('bgMusic');
 const muteBtn = document.getElementById('muteBtn');
 let isMuted = false;
-let audioUnlocked = false; // 新增：用來追蹤是否已經成功解鎖音訊
+let audioUnlocked = false;
 
-bgMusic.volume = 0.3; // BGM 音量調低一點，避免蓋過音效
+bgMusic.volume = 0.3;
 
 muteBtn.addEventListener('pointerdown', (e) => {
     e.stopPropagation();
@@ -27,11 +27,10 @@ muteBtn.addEventListener('pointerdown', (e) => {
     }
 });
 
-// 音效引擎
+// === 音效引擎 (Web Audio API) ===
 const AudioContext = window.AudioContext || window.webkitAudioContext;
 let audioCtx = new AudioContext();
 
-// === 優化：獨立的音訊解鎖函數 ===
 function unlockAudio() {
     if (audioUnlocked) return;
 
@@ -53,14 +52,10 @@ function unlockAudio() {
     }
 
     audioUnlocked = true;
-
-    // 解鎖成功後，移除這個全域監聽器，避免浪費資源
     document.removeEventListener('pointerdown', unlockAudio);
 }
 
-// 綁定到整個 document，只要長輩點擊畫面任何地方就能解鎖
 document.addEventListener('pointerdown', unlockAudio);
-
 
 function playSound(type, combo = 1) {
     if (isMuted || !audioUnlocked) return;
@@ -79,7 +74,6 @@ function playSound(type, combo = 1) {
         osc.frequency.setValueAtTime(120, now);
         osc.frequency.exponentialRampToValueAtTime(30, now + 0.1);
 
-        // 優化：消除爆音，讓音量平滑上升再下降
         gainNode.gain.setValueAtTime(0, now);
         gainNode.gain.linearRampToValueAtTime(0.5, now + 0.02);
         gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
@@ -129,20 +123,34 @@ const BOARD_COLOR_BG = '#1e2738';
 const CELL_COLOR_EMPTY = '#2a3548';
 const BLOCK_COLORS = ['#ff3838', '#32ff7e', '#18dcff', '#ffb8b8', '#c56cf0', '#ffb142', '#fff200'];
 
+// === 資料結構 (32 種形狀) ===
 let board = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
 const SHAPES = [
+    // 基礎小型積木
     [[0,0]],
     [[0,0],[0,1]], [[0,0],[1,0]],
     [[0,0],[0,1],[0,2]], [[0,0],[1,0],[2,0]],
     [[0,0],[1,0],[1,1]], [[0,1],[1,0],[1,1]], [[0,0],[0,1],[1,0]], [[0,0],[0,1],[1,1]],
+
+    // 中型長條與方塊
     [[0,0],[0,1],[0,2],[0,3]], [[0,0],[1,0],[2,0],[3,0]],
     [[0,0],[0,1],[1,0],[1,1]],
+
+    // T 型與十字
     [[0,0],[0,1],[0,2],[1,1]], [[1,0],[1,1],[1,2],[0,1]], [[0,1],[1,0],[1,1],[2,1]], [[0,0],[1,0],[2,0],[1,1]],
+    [[0,1],[1,0],[1,1],[1,2],[2,1]],
+
+    // 5格大積木
     [[0,0],[0,1],[0,2],[0,3],[0,4]], [[0,0],[1,0],[2,0],[3,0],[4,0]],
     [[0,0],[1,0],[2,0],[2,1],[2,2]], [[0,0],[0,1],[0,2],[1,0],[2,0]],
     [[0,0],[1,0],[2,0],[2,-1],[2,-2]], [[0,0],[1,0],[2,0],[0,1],[0,2]],
-    [[0,1],[1,0],[1,1],[1,2],[2,1]],
-    [[0,0],[0,1],[0,2],[1,0],[1,1],[1,2],[2,0],[2,1],[2,2]]
+
+    // 巨大與特殊積木
+    [[0,0],[0,1],[0,2],[1,0],[1,1],[1,2],[2,0],[2,1],[2,2]],
+    [[0,0],[0,1],[0,2],[1,1],[2,1]], [[0,2],[1,0],[1,1],[1,2],[2,2]],
+    [[0,0],[0,1],[0,2],[1,0],[1,2]], [[0,0],[1,0],[2,0],[0,1],[2,1]],
+    [[0,0],[0,1],[1,1],[1,2]], [[0,1],[0,2],[1,0],[1,1]],
+    [[0,0],[1,1],[2,2]], [[0,2],[1,1],[2,0]]
 ];
 
 let handBlocks = [];
@@ -229,7 +237,6 @@ function generateHandBlocks() {
             isUsed: false
         });
     }
-    // 優化：每次生成新積木，確保檢查是否真的能玩
     checkGameOver();
 }
 
@@ -406,6 +413,23 @@ function showCombo(lines) {
     }, 800);
 }
 
+// 分數跳動動畫
+function animateScore(element, start, end, duration) {
+    let startTimestamp = null;
+    const step = (timestamp) => {
+        if (!startTimestamp) startTimestamp = timestamp;
+        const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+        const easeProgress = 1 - Math.pow(1 - progress, 4);
+        element.innerText = Math.floor(easeProgress * (end - start) + start);
+        if (progress < 1) {
+            window.requestAnimationFrame(step);
+        } else {
+            element.innerText = end;
+        }
+    };
+    window.requestAnimationFrame(step);
+}
+
 function checkAndClearLines() {
     let rowsToClear = new Set();
     let colsToClear = new Set();
@@ -422,13 +446,19 @@ function checkAndClearLines() {
     }
 
     let totalLinesCleared = rowsToClear.size + colsToClear.size;
+
     if (totalLinesCleared > 0) {
         isAnimatingClear = true;
         showCombo(totalLinesCleared);
 
-        score += (totalLinesCleared * totalLinesCleared) * 10;
-        scoreElement.innerText = score;
+        let earnedScore = 10;
+        const comboBonus = (Math.pow(2, totalLinesCleared) - 1) * 100;
+        earnedScore += comboBonus;
 
+        let oldScore = score;
+        score += earnedScore;
+
+        animateScore(scoreElement, oldScore, score, 500);
         playSound('clear', totalLinesCleared);
 
         rowsToClear.forEach(r => {
@@ -448,6 +478,8 @@ function checkAndClearLines() {
             }
         });
     } else {
+        score += 10;
+        scoreElement.innerText = score;
         playSound('place');
     }
 }
@@ -460,9 +492,7 @@ function getPos(e) {
 }
 
 canvas.addEventListener('pointerdown', (e) => {
-    // 優化：直接阻斷任何在遊戲結束或動畫播放時的觸控，防止奇怪的邊界錯誤
     if (isGameOver || isAnimatingClear) return;
-
     const pos = getPos(e);
 
     if (pos.y > ROWS * GRID_SIZE) {
@@ -486,7 +516,6 @@ canvas.addEventListener('pointerdown', (e) => {
 
 canvas.addEventListener('pointermove', (e) => {
     if (!draggingBlock) return;
-    // 只有在真的有抓取積木時，才阻止預設行為 (避免干擾頁面其他操作)
     e.preventDefault();
     const pos = getPos(e);
     draggingBlock.currentX = pos.x - dragOffsetX;
@@ -561,5 +590,4 @@ restartBtn.addEventListener('pointerdown', (e) => {
     init();
 });
 
-// 啟動遊戲
 init();
