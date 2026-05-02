@@ -21,8 +21,10 @@
 
     <!-- 隱藏的背景音樂播放器 (無限循環) -->
     <audio id="bgMusic" src="bgm.mp3" loop preload="auto"></audio>
-
-    <div id="scoreBoard">分數: <span id="score">0</span></div>
+    <div id="scoreBoard">
+        <div class="current-score">分數: <span id="score">0</span></div>
+        <div class="high-score">歷史最高: <span id="highScore">0</span></div>
+    </div>
     <canvas id="gameCanvas"></canvas>
 
     <!-- Combo 提示文字 -->

@@ -1,11 +1,16 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const scoreElement = document.getElementById('score');
+const highScoreElement = document.getElementById('highScore'); // 新增：最高分 DOM
 const comboMessage = document.getElementById('comboMessage');
 
 const gameOverModal = document.getElementById('gameOverModal');
 const finalScoreElement = document.getElementById('finalScore');
 const restartBtn = document.getElementById('restartBtn');
+
+// === 新增：讀取本機最高分紀錄 ===
+let highScore = localStorage.getItem('grandmaBlockPuzzleHighScore') || 0;
+highScoreElement.innerText = highScore;
 
 // === 音樂與音效控制 ===
 const bgMusic = document.getElementById('bgMusic');
@@ -27,7 +32,7 @@ muteBtn.addEventListener('pointerdown', (e) => {
     }
 });
 
-// === 音效引擎 (Web Audio API) ===
+// 音效引擎
 const AudioContext = window.AudioContext || window.webkitAudioContext;
 let audioCtx = new AudioContext();
 
@@ -112,7 +117,6 @@ const BOARD_COLOR_BG = '#1e2738';
 const CELL_COLOR_EMPTY = '#2a3548';
 const BLOCK_COLORS = ['#ff3838', '#32ff7e', '#18dcff', '#ffb8b8', '#c56cf0', '#ffb142', '#fff200'];
 
-// === 資料結構 (32 種形狀) ===
 let board = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
 const SHAPES = [
     [[0,0]],
@@ -141,10 +145,31 @@ let dragOffsetY = 0;
 let isAnimatingClear = false;
 let clearingBlocks = [];
 
+// === 新增：粒子系統陣列 ===
+let particles = [];
+
+// === 新增：產生粒子的函式 ===
+function createParticles(x, y, color) {
+    const particleCount = 6; // 每個方塊炸出 6 個碎片
+    for (let i = 0; i < particleCount; i++) {
+        particles.push({
+            x: x + GRID_SIZE / 2, // 從方塊中心噴出
+            y: y + GRID_SIZE / 2,
+            vx: (Math.random() - 0.5) * 15, // 隨機水平噴射速度
+            vy: (Math.random() - 0.5) * 15 - 5, // 隨機垂直噴射速度 (稍微偏上)
+            life: 1.0, // 初始不透明度
+            decay: Math.random() * 0.05 + 0.02, // 消失的速度
+            size: Math.random() * (GRID_SIZE * 0.4) + 4, // 碎片大小
+            color: color
+        });
+    }
+}
+
 function init() {
     isGameOver = false;
     isAnimatingClear = false;
     clearingBlocks = [];
+    particles = []; // 重製時清空粒子
     score = 0;
     scoreElement.innerText = score;
     board = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
@@ -161,7 +186,6 @@ function canShapeFitAnywhere(shape) {
     return false;
 }
 
-// 【新增 1：必定能消演算法】找尋能夠觸發消除的積木
 function getClearableShape() {
     let shuffledShapes = [...SHAPES].sort(() => Math.random() - 0.5);
     for (let shape of shuffledShapes) {
@@ -170,7 +194,7 @@ function getClearableShape() {
                 if (canPlace(shape, r, c)) {
                     let clears = getPreviewClears(shape, r, c);
                     if (clears.rows.length > 0 || clears.cols.length > 0) {
-                        return shape; // 找到可以消除的積木了
+                        return shape;
                     }
                 }
             }
@@ -185,9 +209,8 @@ function generateHandBlocks() {
     const startY = ROWS * GRID_SIZE;
 
     let chosenShapes = [];
-    let giantCount = 0; // 記錄生成的巨大積木數量
+    let giantCount = 0;
 
-    // 智能保底機制：80% 機率直接給予能達成消除的積木
     let smartShape = null;
     if (Math.random() < 0.8) {
         smartShape = getClearableShape();
@@ -198,25 +221,18 @@ function generateHandBlocks() {
         if (smartShape.length >= 5) giantCount++;
     }
 
-    // 隨機補滿剩下的積木，並【新增 2：限制巨大積木數量】
     while (chosenShapes.length < 3) {
         let shape = SHAPES[Math.floor(Math.random() * SHAPES.length)];
 
-        // 如果這個形狀是巨大的 (大於等於 5 格)
         if (shape.length >= 5) {
-            // 如果已經有巨大的了，85% 機率重新抽一個 (讓雙巨大出現率極低)
-            if (giantCount >= 1 && Math.random() < 0.85) {
-                continue;
-            }
+            if (giantCount >= 1 && Math.random() < 0.85) continue;
             giantCount++;
         }
         chosenShapes.push(shape);
     }
 
-    // 打亂順序，避免智能積木永遠在第一個位置
     chosenShapes.sort(() => Math.random() - 0.5);
 
-    // 原有的防死局保底機制 (如果全塞不進去，給一條活路)
     let canFitAny = false;
     for (let shape of chosenShapes) {
         if (canShapeFitAnywhere(shape)) { canFitAny = true; break; }
@@ -230,7 +246,6 @@ function generateHandBlocks() {
         }
     }
 
-    // 配置座標
     for (let i = 0; i < 3; i++) {
         const shape = chosenShapes[i];
         const color = BLOCK_COLORS[Math.floor(Math.random() * BLOCK_COLORS.length)];
@@ -355,17 +370,15 @@ function getPreviewClears(shape, r0, c0) {
     return { rows: previewRows, cols: previewCols };
 }
 
-// 【新增 3：寬鬆吸附演算法】掃描附近是否有空位可以放
 function getSnapTarget(shape, row, col) {
     if (canPlace(shape, row, col)) return { r: row, c: col };
 
     let bestR = -1, bestC = -1, minDist = 99;
-    // 檢查周圍的 3x3 九宮格
     for(let dr = -1; dr <= 1; dr++){
         for(let dc = -1; dc <= 1; dc++){
             if(dr === 0 && dc === 0) continue;
             if(canPlace(shape, row + dr, col + dc)){
-                let dist = dr * dr + dc * dc; // 計算距離平方
+                let dist = dr * dr + dc * dc;
                 if(dist < minDist){
                     minDist = dist;
                     bestR = row + dr;
@@ -406,7 +419,6 @@ function gameLoop() {
         }
     }
 
-    // 繪製包含「寬鬆吸附判定」的落點影子
     if (draggingBlock && !isAnimatingClear) {
         const baseCol = Math.floor((draggingBlock.currentX + (GRID_SIZE * draggingBlock.scale) / 2) / GRID_SIZE);
         const baseRow = Math.floor((draggingBlock.currentY + (GRID_SIZE * draggingBlock.scale) / 2) / GRID_SIZE);
@@ -414,7 +426,6 @@ function gameLoop() {
         const snapTarget = getSnapTarget(draggingBlock.shape, baseRow, baseCol);
 
         if (snapTarget) {
-            // 影子會自動偏移到吸附的位置
             drawShape({...draggingBlock, scale: 1}, snapTarget.c * GRID_SIZE, snapTarget.r * GRID_SIZE, 0.5, '#ffffff');
 
             const upcomingClears = getPreviewClears(draggingBlock.shape, snapTarget.r, snapTarget.c);
@@ -449,6 +460,28 @@ function gameLoop() {
         drawShape(draggingBlock, draggingBlock.currentX, draggingBlock.currentY, 0.95);
     }
 
+    // === 新增：繪製爆破粒子 ===
+    for (let i = particles.length - 1; i >= 0; i--) {
+        let p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.8; // 重力效果，讓粒子呈拋物線下墜
+        p.life -= p.decay;
+
+        if (p.life <= 0) {
+            particles.splice(i, 1); // 移除死掉的粒子
+        } else {
+            ctx.save();
+            ctx.globalAlpha = p.life;
+            ctx.fillStyle = p.color;
+            ctx.translate(p.x, p.y);
+            // 讓粒子帶有旋轉感
+            ctx.rotate(p.life * Math.PI);
+            ctx.fillRect(-p.size/2, -p.size/2, p.size, p.size);
+            ctx.restore();
+        }
+    }
+
     if (!isGameOver) requestAnimationFrame(gameLoop);
 }
 
@@ -463,13 +496,23 @@ function showCombo(lines) {
     }, 800);
 }
 
+// 包含最高分邏輯的分數跳動動畫
 function animateScore(element, start, end, duration) {
     let startTimestamp = null;
     const step = (timestamp) => {
         if (!startTimestamp) startTimestamp = timestamp;
         const progress = Math.min((timestamp - startTimestamp) / duration, 1);
         const easeProgress = 1 - Math.pow(1 - progress, 4);
-        element.innerText = Math.floor(easeProgress * (end - start) + start);
+        let currentVal = Math.floor(easeProgress * (end - start) + start);
+        element.innerText = currentVal;
+
+        // === 檢查並更新最高分 ===
+        if (currentVal > highScore) {
+            highScore = currentVal;
+            localStorage.setItem('grandmaBlockPuzzleHighScore', highScore);
+            highScoreElement.innerText = highScore;
+        }
+
         if (progress < 1) {
             window.requestAnimationFrame(step);
         } else {
@@ -500,6 +543,11 @@ function checkAndClearLines() {
         isAnimatingClear = true;
         showCombo(totalLinesCleared);
 
+        // 如果手機支援，觸發消除時的實體震動 (打擊感倍增！)
+        if (navigator.vibrate) {
+            navigator.vibrate(50 * totalLinesCleared);
+        }
+
         let earnedScore = 10;
         const comboBonus = (Math.pow(2, totalLinesCleared) - 1) * 100;
         earnedScore += comboBonus;
@@ -514,6 +562,10 @@ function checkAndClearLines() {
             for (let c = 0; c < COLS; c++) {
                 if (board[r][c] !== 0) {
                     clearingBlocks.push({ x: c * GRID_SIZE, y: r * GRID_SIZE, color: board[r][c], scale: 1 });
+
+                    // === 觸發粒子爆破 ===
+                    createParticles(c * GRID_SIZE, r * GRID_SIZE, board[r][c]);
+
                     board[r][c] = 0;
                 }
             }
@@ -522,13 +574,26 @@ function checkAndClearLines() {
             for (let r = 0; r < ROWS; r++) {
                 if (board[r][c] !== 0) {
                     clearingBlocks.push({ x: c * GRID_SIZE, y: r * GRID_SIZE, color: board[r][c], scale: 1 });
+
+                    // === 觸發粒子爆破 ===
+                    createParticles(c * GRID_SIZE, r * GRID_SIZE, board[r][c]);
+
                     board[r][c] = 0;
                 }
             }
         });
     } else {
         score += 10;
+        // 如果沒打破最高分，至少更新當前分數跳動；如果有打破，同步更新最高分
+        if (score > highScore) {
+            highScore = score;
+            localStorage.setItem('grandmaBlockPuzzleHighScore', highScore);
+            highScoreElement.innerText = highScore;
+        }
         scoreElement.innerText = score;
+
+        // 放置的微震動
+        if (navigator.vibrate) navigator.vibrate(10);
         playSound('place');
     }
 }
@@ -552,10 +617,15 @@ canvas.addEventListener('pointerdown', (e) => {
             let b = handBlocks[zoneIndex];
             if (!b.isUsed) {
                 draggingBlock = b;
+
                 dragOffsetX = ((b.maxC + b.minC + 1) * GRID_SIZE) / 2;
                 dragOffsetY = ((b.maxR + b.minR + 1) * GRID_SIZE) / 2 + (GRID_SIZE * 2);
+
                 draggingBlock.currentX = pos.x - dragOffsetX;
                 draggingBlock.currentY = pos.y - dragOffsetY;
+
+                // 拿起積木的微震動
+                if (navigator.vibrate) navigator.vibrate(5);
             }
         }
     }
@@ -575,7 +645,6 @@ canvas.addEventListener('pointerup', () => {
     const baseCol = Math.floor((draggingBlock.currentX + (GRID_SIZE * draggingBlock.scale) / 2) / GRID_SIZE);
     const baseRow = Math.floor((draggingBlock.currentY + (GRID_SIZE * draggingBlock.scale) / 2) / GRID_SIZE);
 
-    // 鬆開手指時，也使用寬鬆吸附判定
     const snapTarget = getSnapTarget(draggingBlock.shape, baseRow, baseCol);
 
     if (snapTarget) {
